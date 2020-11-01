@@ -19,3 +19,4 @@ object MeetingMain extends App {
   println(s)
   println(meeting(s))
 }
+
