@@ -1,15 +1,46 @@
-import com.iks.codewars.prefixDiff.PrefixDiff._
+import scala.collection.mutable
 
-val d: Double = 2.0
+def swap(buffer: mutable.ArrayBuffer[String], index: Int): mutable.ArrayBuffer[String] = {
+  val temp = buffer(index + 1)
+  buffer(index + 1) = buffer(index)
+  buffer(index) = temp
+  buffer
+}
 
-val i: Int = 2
-val n: Int = -1
+def arrange(s: String): String = {
+  var words = mutable.ArrayBuffer(s.split(" +"): _*)
+  for (i <- words.indices.init) {
+    val iIsEven = i % 2 == 0
+    val iIsOdd = i % 2 == 1
+    val lenWordA = words(i).length
+    val lenWordB = words(i + 1).length
+    words = if ((iIsEven && lenWordA > lenWordB) ||
+      (iIsOdd && lenWordA < lenWordB)) swap(words, i)
+    else words
+  }
+  words.indices.map(i => if (i % 2 == 0) words(i).toLowerCase else words(i).toUpperCase).mkString(" ")
+}
 
-val c1 = Constant(d)
-val c2 = Constant(i)
-val c3 = Constant(n)
+val text = "who hit retaining The That a we taken"
+arrange(text)
 
-val exp = BinaryTerm(STAR, c3, c2)
-simplify(exp)
+var words = mutable.ArrayBuffer(text.split(" +"): _*)
 
-d.isValidInt
+def switch(i: Int, j: Int): String = {
+  val temp = words(j)
+  words(j) = words(i)
+  words(i) = temp
+  temp
+}
+
+words.indices.map( i => {
+  if (i % 2 == 0)
+    (if (i < words.length - 1 && words(i).length > words(i+1).length) switch(i, i + 1)
+    else words(i)).toLowerCase
+  else
+    (if (i < words.length - 1 && words(i).length < words(i+1).length) switch(i, i + 1)
+    else words(i)).toUpperCase
+})
+
+words
+words.patchInPlace(1, "one", 2)
