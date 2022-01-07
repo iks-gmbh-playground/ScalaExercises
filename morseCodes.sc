@@ -1,5 +1,5 @@
-import MorseDecoder._
-import MorseDecoderAdvanced._
+import com.iks.codewars.morsecode.decode.MorseDecoder._
+import com.iks.codewars.morsecode.decodeAdvanced.MorseDecoderAdvanced._
 
 import scala.util.matching.Regex
 
