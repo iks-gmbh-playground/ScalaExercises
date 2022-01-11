@@ -1,16 +1,15 @@
 package com.iks.codewars.nonograms
 
 import scala.annotation.tailrec
-import scala.collection._
 
 object NonogramSolver {
 
   type Clue = List[Int]
   type Clues = List[Clue]
 
-  implicit class nonoGramString(val str: String) {
-    def isPossiblyValid(clue: Clue, size: Int): Boolean =
-      if (str.length == size) isValid(clue, size)
+  implicit class NonogramString(val str: String) {
+    def isPossiblyValidFor(clue: Clue, size: Int): Boolean =
+      if (str.length == size) isValidFor(clue, size)
       else if (str.length > size) false
       else if (str.isEmpty) true
       else if (clue.sum == 0) str.matches(s"0*")
@@ -20,86 +19,79 @@ object NonogramSolver {
         str.matches(s"0*1{0,${clue.head}}") &&
           (size - str.takeWhile(_ == '0').length >= clue.sum + clue.size - 1) ||
           str.matches(s"0*1{${clue.head}}0[0,1]*") &&
-            str.dropWhile(_ == '0').drop(clue.head).isPossiblyValid(clue.tail, size - str.segmentLength(_ == '0') - clue.head)
+            str.dropWhile(_ == '0').drop(clue.head).isPossiblyValidFor(clue.tail, size - str.segmentLength(_ == '0') - clue.head)
 
-    def isValid(clue: Clue, size: Int): Boolean =
+    def isValidFor(clue: Clue, size: Int): Boolean =
       if (str.length != size) false
       else if (clue.sum == 0) str.matches(s"0{$size}")
       else if (clue.size == 1) str.matches(s"0*1{${clue.head}}0*")
       else if (clue.size > 1 && str.matches(s"0*1{${clue.head}}0[0,1]*"))
-        str.dropWhile(_ == '0').drop(clue.head).isValid(clue.tail, size - str.segmentLength(_ == '0') - clue.head)
+        str.dropWhile(_ == '0').drop(clue.head).isValidFor(clue.tail, size - str.segmentLength(_ == '0') - clue.head)
       else false
   }
 
-  case class Board(rows: IndexedSeq[String]) {
+  case class Board(rows: List[String]) {
     val size: Int = if (rows.isEmpty) 0 else rows.head.length
 
-    val columns: IndexedSeq[String] =
-      for (j <- 0 until size) yield
-        (for (i <- rows.indices) yield rows(i)(j)).mkString
+    assert(rows.forall(_.length == size))
 
-    override def toString: String = (for (i <- rows.indices) yield
-      (for (j <- rows(i).indices) yield rows(i)(j)).mkString("(", ", ", ")")).mkString("(", "\n ", ")")
+    val columns: List[String] =
+      (for (j <- 0 until size) yield
+        (for (row <- rows) yield row(j)).mkString).toList
+
+    override def toString: String = (for (row <- rows) yield
+      row.toList.mkString("(", ", ", ")")).mkString("(", "\n ", ")")
 
     def isValid(rowClues: Clues, columnClues: Clues): Boolean =
-      (rows zip rowClues forall { case (row, clue) => row.isValid(clue, rows.size) }) &&
-        (columns zip columnClues forall { case (column, clue) => column.isValid(clue, rows.size) })
+      (columns zip columnClues forall { case (column, clue) => column.isValidFor(clue, rows.size) }) &&
+        (rows zip rowClues forall { case (row, clue) => row.isValidFor(clue, rows.size) })
 
     def isPossiblyValid(rowClues: Clues, columnClues: Clues): Boolean =
-      (rows zip rowClues forall { case (row, clue) => row.isPossiblyValid(clue, rows.head.length) }) &&
-        (columns zip columnClues forall { case (column, clue) => column.isPossiblyValid(clue, rows.head.length) })
+      (columns zip columnClues forall { case (column, clue) => column.isPossiblyValidFor(clue, rows.head.length) }) &&
+        (rows zip rowClues forall { case (row, clue) => row.isPossiblyValidFor(clue, rows.head.length) })
   }
 
-  def validStrings(clue: Clue, size: Int,
-                   prefix: String = "", acc: IndexedSeq[String] = IndexedSeq.empty): IndexedSeq[String] =
+  def createAllValidStringsFor(clue: Clue, size: Int,
+                               prefix: String = "", acc: List[String] = List.empty): List[String] =
     if (clue.sum == 0)
-      (prefix + "0" * size) +: acc
+      (prefix + "0" * size) :: acc
     else if (clue.size == 1)
       if (size - clue.head <= 0)
-        (prefix + "1" * clue.head) +: acc
+        (prefix + "1" * clue.head) :: acc
       else
-        (prefix + "1" * clue.head + "0" * (size - clue.head)) +: validStrings(clue, size - 1, prefix + "0", acc)
+        (prefix + "1" * clue.head + "0" * (size - clue.head)) :: createAllValidStringsFor(clue, size - 1, prefix + "0", acc)
     else if (clue.size + clue.sum == size + 1)
-      (prefix + (for (c <- clue) yield "1" * c).mkString("0")) +: acc
+      (prefix + (for (c <- clue) yield "1" * c).mkString("0")) :: acc
     else
       (0 to size - clue.sum - clue.size + 1).foldLeft(acc)((ll, i) => {
         val prefixNew = prefix + "0" * i + "1" * clue.head + "0"
-        validStrings(clue.tail, size - i - clue.head - 1, prefixNew, ll)
+        createAllValidStringsFor(clue.tail, size - i - clue.head - 1, prefixNew, ll)
       })
 
   def solve(rowClues: Clues, columnClues: Clues): Option[Board] = {
 
-    def findValidBoard(allValidStrings: List[IndexedSeq[String]],
-                       rowStrings: IndexedSeq[String]): Option[Board] = {
+    def collectRowsToValidBoard(allValidStringsForAllRows: List[List[String]],
+                       collectedRows: List[String] = List.empty): Option[Board] = {
       @tailrec
-      def innerLoop(validStrings: IndexedSeq[String]): Option[Board] =
-        if (validStrings.isEmpty)
-          None
-        else {
-          val newRowStrings = rowStrings :+ validStrings.head
-          if (Board(newRowStrings).isPossiblyValid(rowClues, columnClues)) {
-            val maybeBoard = findValidBoard(allValidStrings.tail, newRowStrings)
-            if (maybeBoard.isEmpty)
-              innerLoop(validStrings.tail)
-            else
-              maybeBoard
-          } else
-            innerLoop(validStrings.tail)
+      def appendNextValidRow(validStringsForNextRow: List[String]): Option[Board] =
+        validStringsForNextRow match {
+          case List() => None
+          case validRowString :: moreValidRowStrings =>
+            if (Board(collectedRows :+ validRowString).isPossiblyValid(rowClues, columnClues))
+              collectRowsToValidBoard(allValidStringsForAllRows.tail, collectedRows :+ validRowString) match {
+                case None => appendNextValidRow(moreValidRowStrings)
+                case success => success
+              }
+            else appendNextValidRow(moreValidRowStrings)
         }
 
-      if (allValidStrings.isEmpty) {
-        val board = Board(rowStrings)
-        if (board.isValid(rowClues, columnClues))
-          Some(board)
-        else
-          None
-      } else
-        innerLoop(allValidStrings.head)
+      if (allValidStringsForAllRows.isEmpty) Some(Board(collectedRows))
+      else appendNextValidRow(allValidStringsForAllRows.head)
     }
 
-    val allValidStrings = for (c <- rowClues) yield validStrings(c, columnClues.size)
-    val counter = allValidStrings.foldLeft(BigInt("1"))((c, vs) => c * vs.size)
+    val allValidStringsForAllRows = for (rowClue <- rowClues) yield createAllValidStringsFor(rowClue, columnClues.size)
+    val counter = allValidStringsForAllRows.foldLeft(BigInt("1"))((c, vs) => c * vs.size)
     println(s"nonogramSolver started for $counter possible Boards.")
-    findValidBoard(allValidStrings, IndexedSeq.empty[String])
+    collectRowsToValidBoard(allValidStringsForAllRows)
   }
 }
